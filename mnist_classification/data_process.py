@@ -76,7 +76,7 @@ dir = 'C:\zzdata\bot_train'    # to be changed to local address
 ProcessData(dir)
 # read the pickles
 i = 0
-while i<1:
+while i<12:
     pickle_name = 'bot_train_' + str(i)
     pickle_name = pickle_name + '.pkl'
     subdir = os.path.join(dir, pickle_name)
