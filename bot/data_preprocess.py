@@ -118,8 +118,8 @@ def resize_and_pad_zero(image, target_height, target_width):
 
 if __name__ == '__main__':
     
-    label_map = {'cat': 0, 'chipmunk': 1, 'dog': 2, 'fox': 3, 'giraffe': 4, 'guinea pig': 5, 
-                 'hyena': 6, 'reindeer': 7, 'sikadeer': 8, 'squirrel': 9, 'weasel': 10, 'wolf': 11}
+    # also comment out label map to prevent our code being discovered
+    label_map = {'folder_name': 0}
     
     # uncomment following lines to fit your system settings
     # image_root_dir = 'your_image_root_directory'
