@@ -2,6 +2,10 @@
 CNN model:
 1. Train the model based on data set
 2. Predict the animals, give the probability distribution
+
+data: 
+https://drive.google.com/drive/folders/0B9O7ojDteiIKLWVqMm9BMXdVUGs?usp=sharing
+
 """
 from __future__ import print_function
 import numpy as np
