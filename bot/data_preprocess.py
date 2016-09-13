@@ -5,42 +5,59 @@ import numpy as np
 from skimage import io, color, transform, img_as_ubyte
 import matplotlib.pyplot as plt
 from sklearn.cross_validation import train_test_split
+import random
 
 class DataPreProcess(object):
     def __init__(self, 
                  input_root_dir, 
                  output_root_dir, 
-                 output_file_prefix, 
                  label_map, 
                  target_height, 
                  target_width):
         
         self.input_root_dir = input_root_dir
         self.output_root_dir = output_root_dir
-        self.output_file_prefix = output_file_prefix
         self.label_map = label_map
         self.target_height = target_height
         self.target_width = target_width
     
     
-    def load_data(self, label_name):
-        data_dir = os.path.join(self.output_root_dir, self.output_file_prefix + label_name + '.pkl')
+    def load_data(self, label_name, data_type):
+        data_dir = os.path.join(self.output_root_dir, data_type + '_' + label_name + '.pkl')
         f = open(data_dir, 'rb')
-        train_data, validation_data, test_data = pickle.load(f)
+        data = pickle.load(f)
         f.close()
-        return train_data, validation_data, test_data
+        return data
+    
+    
+    def load_all_data(self, data_type):
+        images = []
+        labels = []
+        for label_name in self.label_map:
+            data_dir = os.path.join(self.output_root_dir, data_type + '_' + label_name + '.pkl')
+            f = open(data_dir, 'rb')
+            curr_image, curr_label = pickle.load(f)
+            f.close()
+            images.extend(curr_image)
+            labels.extend(curr_label)
+        
+        data = zip(images, labels)
+        random.shuffle(data)
+        images, labels = zip(*data)
+        
+        return images, labels
     
     
     def show_data(self, label_name):
-        train_data, validation_data, test_data = self.load_data(label_name)
-        train_images = train_data[0]
+        train_images, train_labels = self.load_data(label_name, 'train')
+        # train_images, train_labels = self.load_all_data('train')
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             for image in train_images:
                 plt.imshow(image, cmap='Greys_r')
                 plt.pause(2)
                 
-                
+
     def preprocess_data(self):
         for folder_name in self.label_map:
             print('writing files for class ' + folder_name)
@@ -52,8 +69,8 @@ class DataPreProcess(object):
                 image_dir = os.path.join(sub_dir, image_name)
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
-                    image = img_as_ubyte(color.rgb2gray(io.imread(image_dir)))
-                    padded_image = resize_and_pad_zero(image, self.target_height, self.target_width)
+                    image = color.rgb2gray(io.imread(image_dir))
+                    padded_image = img_as_ubyte(resize_and_pad_zero(image, self.target_height, self.target_width))
                 images.append((padded_image))
             # separate data into train validation test sets, percentage: 0.8, 0.1, 0.1
             images_train, images_vali_test = train_test_split(images, test_size=0.2, random_state=42)
@@ -62,12 +79,17 @@ class DataPreProcess(object):
             labels_validation = np.full((len(images_validation),), current_label, dtype=np.int)
             labels_test = np.full((len(images_test),), current_label, dtype=np.int)
             # use pickle to write back files
-            output_file_name = self.output_file_prefix + folder_name + '.pkl'
-            output_file_dir = os.path.join(self.output_root_dir, output_file_name)
-            output_file = open(output_file_dir, 'wb')
-            pickle.dump([(images_train, labels_train), (images_validation, labels_validation), (images_test, labels_test)], output_file, -1)
-            output_file.close()
+            write_data(self.output_root_dir, folder_name, 'train', images_train, labels_train)
+            write_data(self.output_root_dir, folder_name, 'validation', images_validation, labels_validation)
+            write_data(self.output_root_dir, folder_name, 'test', images_test, labels_test)
             
+
+def write_data(root_dir, label_name, data_type, images, labels):
+        output_file_name = data_type + '_' + label_name + '.pkl'
+        output_file_dir = os.path.join(root_dir, output_file_name)
+        output_file = open(output_file_dir, 'wb')
+        pickle.dump([images, labels], output_file, -1)
+        output_file.close()
 
 def image_search(root_dir):
     file_names = []
@@ -112,18 +134,14 @@ def resize_and_pad_zero(image, target_height, target_width):
     # print("ratio %f, padded height %d, padded width %d" % (ratio, padded_image.shape[0], padded_image.shape[1]))
     return padded_image
     
-    
-
-
 
 if __name__ == '__main__':
+    label_map = {'cat': 0, 'chipmunk': 1, 'dog': 2, 'fox': 3, 'giraffe': 4, 'guinea pig': 5, 
+                 'hyena': 6, 'reindeer': 7, 'sikadeer': 8, 'squirrel': 9, 'weasel': 10, 'wolf': 11}
+    # label_map = {'chipmunk': 1}
+    image_root_dir = '/home/tao/Projects/bot-match/train_data/images/'
+    pickle_root_dir = '/home/tao/Projects/bot-match/train_data/data/120_160'
     
-    # also comment out label map to prevent our code being discovered
-    label_map = {'folder_name': 0}
-    
-    # uncomment following lines to fit your system settings
-    # image_root_dir = 'your_image_root_directory'
-    # pickle_root_dir = os.path.join(image_root_dir, 'pickle')
-    data_preprocessor = DataPreProcess(image_root_dir, pickle_root_dir, 'labeled_raw_data_', label_map, target_height=180, target_width=240)
+    data_preprocessor = DataPreProcess(image_root_dir, pickle_root_dir, label_map, target_height=120, target_width=160)
     # data_preprocessor.preprocess_data()
-    # data_preprocessor.show_data('sikadeer')
+    data_preprocessor.show_data('chipmunk')
