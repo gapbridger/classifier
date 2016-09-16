@@ -136,12 +136,12 @@ def resize_and_pad_zero(image, target_height, target_width):
     
 
 if __name__ == '__main__':
-    label_map = {'cat': 0, 'chipmunk': 1, 'dog': 2, 'fox': 3, 'giraffe': 4, 'guinea pig': 5, 
-                 'hyena': 6, 'reindeer': 7, 'sikadeer': 8, 'squirrel': 9, 'weasel': 10, 'wolf': 11}
+    label_map = {'cat': 6, 'chipmunk': 7, 'dog': 4, 'fox': 3, 'giraffe': 8, 'guinea pig': 0,
+                 'hyena': 10, 'reindeer': 9, 'sikadeer': 2, 'squirrel': 1, 'weasel': 11, 'wolf': 5}
     # label_map = {'chipmunk': 1}
-    image_root_dir = '/home/tao/Projects/bot-match/train_data/images/'
-    pickle_root_dir = '/home/tao/Projects/bot-match/train_data/data/120_160'
+    image_root_dir = 'C:\\zzdata\\bot_train'
+    pickle_root_dir = 'C:\\zzdata\\bot_train\\pickle'
     
-    data_preprocessor = DataPreProcess(image_root_dir, pickle_root_dir, label_map, target_height=120, target_width=160)
+    data_preprocessor = DataPreProcess(image_root_dir, pickle_root_dir, label_map, target_height=224, target_width=224)
     # data_preprocessor.preprocess_data()
     data_preprocessor.show_data('chipmunk')

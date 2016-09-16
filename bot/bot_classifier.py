@@ -26,6 +26,7 @@ from convolutional_neural_network import LeNetConvPoolLayer
 from utilities import load_data
 from data_preprocess import DataPreProcess
 
+
 def shared_dataset(data_x, data_y):
     shared_x = theano.shared(numpy.asarray(data_x, dtype=theano.config.floatX), borrow=True)
     shared_y = theano.shared(numpy.asarray(data_y, dtype=theano.config.floatX), borrow=True)
