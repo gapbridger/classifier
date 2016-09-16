@@ -74,14 +74,14 @@ class ImagePreprocess(object):
     
 
     def load_data_partition(self, partition_index, data_type):
-        data_dir = os.path.join(self.output_root_dir, ('%s_cropped_224_224_ndarray_%d.pkl') % (data_type, partition_index))
+        data_dir = os.path.join(self.input_root_dir, ('%s_cropped_224_224_ndarray_%d.pkl') % (data_type, partition_index))
         f = open(data_dir, 'rb')
         train_images, train_labels = pickle.load(f)
         f.close()
         return train_images, train_labels
 
     def show_image(self, partition_index):
-        train_images, train_labels = self.load_data_partition(partition_index, 'train')
+        train_images, train_labels = self.load_data_partition(partition_index, 'validation')
         
         # train_images, train_labels = self.load_all_train_data('train')
         with warnings.catch_warnings():
@@ -108,12 +108,12 @@ class ImagePreprocess(object):
             write_data(os.path.join(self.output_root_dir, 'validation_images_labels_' + folder_name + '.pkl'), [curr_validation_image_list, curr_validation_label_list])
         
         
-    def persist_cropped_train_image_ndarray(self, partition_index, n_partition):
+    def persist_cropped_train_image_ndarray(self, partition_index, n_partition, data_type):
         
         full_train_cropped_image_list = []
         full_train_label_list = []
         for folder_name in self.label_map:
-            data_dir = os.path.join(self.input_root_dir, 'validation_images_labels_' + folder_name + '.pkl')
+            data_dir = os.path.join(self.input_root_dir, data_type + '_images_labels_' + folder_name + '.pkl')
             f = open(data_dir, 'rb')
             curr_train_image_list, curr_train_label_list = pickle.load(f)
             f.close()
@@ -139,7 +139,7 @@ class ImagePreprocess(object):
         full_train_cropped_image_list = np.stack(full_train_cropped_image_list, axis=0)
         full_train_label_list = np.asarray(full_train_label_list, dtype=np.int)
         print('saving pickle..')
-        write_data(os.path.join(self.output_root_dir, ('validation_cropped_224_224_ndarray_%d.pkl') % (partition_index)), [full_train_cropped_image_list, full_train_label_list])
+        write_data(os.path.join(self.output_root_dir, ('%s_cropped_224_224_ndarray_%d.pkl') % (data_type, partition_index)), [full_train_cropped_image_list, full_train_label_list])
 
 
     def mean_train_rgb(self, n_partition):
@@ -182,13 +182,15 @@ if __name__ == '__main__':
     parser.add_argument("-i", "--input", help="input data directory", default="")
     parser.add_argument("-o", "--output", help="output data directory", default="")
     parser.add_argument("-s", "--scale", type=int, help="scale", default=256)
+    parser.add_argument("-t", "--type", help="data type", default='validation')
     
     args = parser.parse_args()
     
     input_root_dir = args.input
     output_root_dir = args.output
     target_scale = args.scale
-    n_partition = 8
+    data_type = args.type
+    n_partition = 16
     
     data_preprocessor = ImagePreprocess(input_root_dir, output_root_dir, target_scale=target_scale)
     if(args.mode == "resize"):
@@ -196,7 +198,7 @@ if __name__ == '__main__':
     elif(args.mode == "crop"):
         for i in range(n_partition):
             print('partition %d' % (i + 1))
-            data_preprocessor.persist_cropped_train_image_ndarray(i + 1, n_partition)
+            data_preprocessor.persist_cropped_train_image_ndarray(i + 1, n_partition, data_type)
     elif(args.mode == "show"):
         data_preprocessor.show_image(1)
     elif(args.mode == "mean"):
