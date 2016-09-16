@@ -12,13 +12,15 @@ class ImagePreprocess(object):
     def __init__(self, 
                  input_root_dir, 
                  output_root_dir, 
-                 label_map, 
-                 target_scale): # target size of smallest side
+                 target_scale = 256): # target size of smallest side
         
         self.input_root_dir = input_root_dir
         self.output_root_dir = output_root_dir
-        self.label_map = label_map
         self.target_scale = target_scale
+        self.label_map = {'guinea pig': 0, 'squirrel': 1, 'sikadeer': 2, 'fox': 3, 'dog': 4, 'wolf': 5,
+                          'cat': 6, 'chipmunk': 7, 'giraffe': 8, 'reindeer': 9, 'hyena': 10, 'weasel': 11}
+        self.reverse_label_map = {0: 'guinea pig', 1: 'squirrel', 2: 'sikadeer', 3: 'fox', 4: 'dog', 5: 'wolf', 
+                                  6: 'cat', 7: 'chipmunk', 8: 'giraffe', 9: 'reindeer', 10: 'hyena', 11: 'weasel'}
     
 
     def scale_images(self, folder_directory):
@@ -70,18 +72,22 @@ class ImagePreprocess(object):
             
         return image_list
     
-    def show_image(self, partition_index):
-        data_dir = os.path.join(self.output_root_dir, ('train_cropped_224_224_list_%d.pkl') % (partition_index))
+
+    def load_data_partition(self, partition_index, data_type):
+        data_dir = os.path.join(self.output_root_dir, ('%s_cropped_224_224_ndarray_%d.pkl') % (data_type, partition_index))
         f = open(data_dir, 'rb')
         train_images, train_labels = pickle.load(f)
         f.close()
-        reverse_label_map = {0: 'guinea pig', 1: 'squirrel', 2: 'sikadeer', 3: 'fox', 4: 'dog', 5: 'wolf', 
-                             6: 'cat', 7: 'chipmunk', 8: 'giraffe', 9: 'reindeer', 10: 'hyena', 11: 'weasel'}
+        return train_images, train_labels
+
+    def show_image(self, partition_index):
+        train_images, train_labels = self.load_data_partition(partition_index, 'train')
+        
         # train_images, train_labels = self.load_all_train_data('train')
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             for i in range(train_images.shape[0]):
-                plt.title(reverse_label_map[train_labels[i]])
+                plt.title(self.reverse_label_map[train_labels[i]])
                 plt.imshow(train_images[i,:,:,:])
                 plt.pause(2)
     
@@ -102,13 +108,12 @@ class ImagePreprocess(object):
             write_data(os.path.join(self.output_root_dir, 'validation_images_labels_' + folder_name + '.pkl'), [curr_validation_image_list, curr_validation_label_list])
         
         
-    def persist_cropped_train_image_list(self, partition_index, n_partition):
+    def persist_cropped_train_image_ndarray(self, partition_index, n_partition):
         
         full_train_cropped_image_list = []
         full_train_label_list = []
         for folder_name in self.label_map:
-            
-            data_dir = os.path.join(self.input_root_dir, 'train_images_labels_' + folder_name + '.pkl')
+            data_dir = os.path.join(self.input_root_dir, 'validation_images_labels_' + folder_name + '.pkl')
             f = open(data_dir, 'rb')
             curr_train_image_list, curr_train_label_list = pickle.load(f)
             f.close()
@@ -134,9 +139,22 @@ class ImagePreprocess(object):
         full_train_cropped_image_list = np.stack(full_train_cropped_image_list, axis=0)
         full_train_label_list = np.asarray(full_train_label_list, dtype=np.int)
         print('saving pickle..')
-        write_data(os.path.join(self.output_root_dir, ('train_cropped_224_224_list_%d.pkl') % (partition_index)), [full_train_cropped_image_list, full_train_label_list])
+        write_data(os.path.join(self.output_root_dir, ('validation_cropped_224_224_ndarray_%d.pkl') % (partition_index)), [full_train_cropped_image_list, full_train_label_list])
 
 
+    def mean_train_rgb(self, n_partition):
+        rgb_sum = np.full((1, 1, 3), 0.0, dtype=np.float64)
+        rgb_count = 0
+        for partition_index in range(n_partition):
+            train_images, train_labels = self.load_data_partition(partition_index, 'train')
+            rgb_sum = rgb_sum + np.sum(train_images, axis=(0,1,2))
+            rgb_count = rgb_count + train_images.shape[0] * train_images.shape[1] * train_images.shape[2]
+                        
+        rgb_avg = rgb_sum / float(rgb_count)
+        
+        return rgb_avg 
+            
+        
 
 def write_data(directory, data):
     output_file = open(directory, 'wb')
@@ -159,11 +177,6 @@ def image_search(root_dir):
 
 if __name__ == '__main__':
     
-    label_map = {'guinea pig': 0, 'squirrel': 1, 'sikadeer': 2, 'fox': 3, 'dog': 4, 'wolf': 5,
-                 'cat': 6, 'chipmunk': 7, 'giraffe': 8, 'reindeer': 9, 'hyena': 10, 'weasel': 11}
-    
-    
-    
     parser = argparse.ArgumentParser(prog='data_preprocessing')
     parser.add_argument('-m', '--mode', help="data process mode")
     parser.add_argument("-i", "--input", help="input data directory", default="")
@@ -175,14 +188,17 @@ if __name__ == '__main__':
     input_root_dir = args.input
     output_root_dir = args.output
     target_scale = args.scale
+    n_partition = 8
     
-    data_preprocessor = ImagePreprocess(input_root_dir, output_root_dir, label_map, target_scale=target_scale)
+    data_preprocessor = ImagePreprocess(input_root_dir, output_root_dir, target_scale=target_scale)
     if(args.mode == "resize"):
         data_preprocessor.persist_resized_train_image_list()
     elif(args.mode == "crop"):
-        n_partition = 8
         for i in range(n_partition):
             print('partition %d' % (i + 1))
-            data_preprocessor.persist_cropped_train_image_list(i + 1, n_partition)
+            data_preprocessor.persist_cropped_train_image_ndarray(i + 1, n_partition)
     elif(args.mode == "show"):
         data_preprocessor.show_image(1)
+    elif(args.mode == "mean"):
+        rgb_avg = data_preprocessor.mean_train_rgb(n_partition)
+        print('calculated average rgb value is: %.4f %.4f %.4f' % (rgb_avg[0, 0, 0], rgb_avg[0, 0, 1], rgb_avg[0, 0, 2]))
