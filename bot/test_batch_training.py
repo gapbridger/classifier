@@ -95,7 +95,7 @@ def ImageNet():
     nb_sample = len(X_train)
     chunk_size = 10000
 
-    while 1:
+    while 1:   #  to be decide by data size
         for i in range(nb_sample/chunk_size):  # 60000/10000
             if i<4:
                 yield X_train_pk[0][chunk_size*i:chunk_size*(i+1)], y_train_pk[0][chunk_size*i:chunk_size*(i+1)]   # load pickle
@@ -122,17 +122,18 @@ X_sample = X_train[idx[1:1000]]
 datagen.fit(X_sample) # let's say X_sample is a small-ish but statistically representative sample of your data
 
 # With data augmentation
-# for e in range(nb_epoch):
-#     print("epoch %d" % e)
-#     for X_train, Y_train in ImageNet(): # load a chunk of pictures first
-#         for X_batch, Y_batch in datagen.flow(X_train, Y_train, batch_size=32): #  pick a batch from the chunk, and do augmentation
-#             loss = model.train_on_batch(X_batch, Y_batch)
+
+for X_train, Y_train in ImageNet(): # load a chunk of pictures first
+    model.fit_generator(datagen.flow(X_train, Y_train, batch_size=32),
+                            samples_per_epoch = X_train.shape[0],
+                            nb_epoch = nb_epoch,
+                            validation_data = (X_test, Y_test)
+                            )#  pick a batch from the chunk, and do augmentation
 
 
-# Alternatively, without data augmentation / normalization:
-for e in range(nb_epoch):
-    print("epoch %d" % e)
-    for X_train, Y_train in ImageNet(): # these are chunks of ~10k pictures
-        model.fit(X_train, Y_train, batch_size=32, nb_epoch=1)
+
+# Alternatively, without data augmentation
+# for X_train, Y_train in ImageNet(): # these are chunks of ~10k pictures
+#     model.fit(X_train, Y_train, batch_size=32, nb_epoch=1)
 
 
