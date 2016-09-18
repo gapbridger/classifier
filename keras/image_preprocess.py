@@ -68,18 +68,35 @@ class ImagePreprocess(object):
         else:
             return images
     
-    def crop_images(self, image_list):
+    def crop_images(self, image_list, mode='center'):
         idx = 0
-        for image in image_list: # each files
+        for idx in range(len(image_list)): # each files
+            image = image_list[idx]
             image_height = image.shape[0]
             image_width = image.shape[1]
             crop_size = 224
-            image = image[(image_height - crop_size) / 2 : (image_height + crop_size) / 2, 
+            if mode == 'center':
+                image = image[(image_height - crop_size) / 2 : (image_height + crop_size) / 2, 
+                                      (image_width - crop_size) / 2 : (image_width + crop_size) / 2, :]
+            elif mode == 'random':
+                # crop from one of the five mode
+                crop_location = random.randint(1, 5)
+#                 print('crop location %d' % crop_location)
+                if crop_location == 1: # center
+                    image = image[(image_height - crop_size) / 2 : (image_height + crop_size) / 2, 
                                   (image_width - crop_size) / 2 : (image_width + crop_size) / 2, :]
+                elif crop_location == 2: # upper left
+                    image = image[0 : crop_size, 0: crop_size, :]
+                elif crop_location == 3: # upper right
+                    image = image[0 : crop_size, image_width - crop_size : image_width, :]
+                elif crop_location == 4: # lower left
+                    image = image[image_height - crop_size : image_height, 0 : crop_size, :]
+                elif crop_location == 5: # lower right
+                    image = image[image_height - crop_size : image_height, image_width - crop_size : image_width, :]
+                    
             image_list[idx] = image
 #             plt.imshow(image_list[idx])
 #             plt.pause(3)
-            idx += 1
             
         return image_list
     
@@ -129,6 +146,64 @@ class ImagePreprocess(object):
         print('test image length %d' % (len(test_image_list)))
         # use pickle to write back files
         write_data(os.path.join(self.output_root_dir, 'test_image_list.pkl'), test_image_list)
+        
+        
+    def partition_train_image_list(self, n_partition, data_type):
+        n_partition_per_batch = 4
+        
+        if(n_partition % n_partition_per_batch != 0):
+            print("incorrect number of partition per batch... n_partition should mod n_partition_per_batch 0")
+            exit(1)
+            
+        for batch_idx in range(n_partition / n_partition_per_batch):
+            full_train_cropped_images = [[]  for i in range(n_partition_per_batch)]
+            full_train_labels = [[]  for i in range(n_partition_per_batch)]
+            
+            for folder_name in self.label_map:
+                data_dir = os.path.join(self.input_root_dir, data_type + '_images_labels_' + folder_name + '.pkl')
+                f = open(data_dir, 'rb')
+                train_images, train_labels = pickle.load(f)
+                f.close()
+                
+                batch_length = len(train_images) / n_partition
+                
+                for curr_batch_partition_idx in range(n_partition_per_batch):
+                    partition_idx = batch_idx * n_partition_per_batch + curr_batch_partition_idx
+                    
+                    if(partition_idx < n_partition):
+                        curr_train_images = train_images[partition_idx * batch_length : (partition_idx + 1) * batch_length]
+                        curr_train_labels = train_labels[partition_idx * batch_length : (partition_idx + 1) * batch_length]
+                    else:
+                        curr_train_images = train_images[partition_idx * batch_length:]
+                        curr_train_labels = train_labels[partition_idx * batch_length:]
+                
+                    if(len(full_train_cropped_images[curr_batch_partition_idx]) == 0):
+                        full_train_cropped_images[curr_batch_partition_idx] = curr_train_images
+                        full_train_labels[curr_batch_partition_idx] = curr_train_labels.tolist()
+                    else:
+                        full_train_cropped_images[curr_batch_partition_idx].extend(curr_train_images)
+                        full_train_labels[curr_batch_partition_idx].extend(curr_train_labels.tolist())
+                
+                    print('processed %d %s images, partition index %d' % (len(curr_train_images), folder_name, partition_idx))
+                    print('total image list length %d partition index %d' % (len(full_train_cropped_images[curr_batch_partition_idx]), partition_idx))
+            
+            for curr_batch_partition_idx in range(n_partition_per_batch):   
+                partition_idx = batch_idx * n_partition_per_batch + curr_batch_partition_idx
+                data = zip(full_train_cropped_images[curr_batch_partition_idx], full_train_labels[curr_batch_partition_idx])
+                random.shuffle(data)
+                shuffled_full_train_images, shuffled_full_train_labels = zip(*data)
+                shuffled_full_train_images = list(shuffled_full_train_images)
+                shuffled_full_train_labels = np.asarray(shuffled_full_train_labels, dtype=np.int)
+                print('saving pickle..')
+                write_data(os.path.join(self.output_root_dir, ('%s_cropped_224_224_ndarray_%d.pkl') % (data_type, partition_idx)), [shuffled_full_train_images, shuffled_full_train_labels])
+                
+            del full_train_cropped_images
+            del full_train_labels
+            del curr_train_images
+            del curr_train_labels
+            del shuffled_full_train_images
+            del shuffled_full_train_labels
+            gc.collect()
         
         
     def persist_cropped_train_image_ndarray(self, n_partition, data_type):
@@ -278,6 +353,8 @@ if __name__ == '__main__':
     data_preprocessor = ImagePreprocess(input_root_dir, output_root_dir, target_scale=target_scale)
     if(args.mode == "resize"):
         data_preprocessor.persist_resized_train_image_and_label()
+    if(args.mode == "partition"):
+        data_preprocessor.partition_train_image_list(n_partition, data_type)
     elif(args.mode == "crop"):
         data_preprocessor.persist_cropped_train_image_ndarray(n_partition, data_type)
     elif(args.mode == "show"):
