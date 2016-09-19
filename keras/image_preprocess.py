@@ -140,6 +140,37 @@ class ImagePreprocess(object):
             # use pickle to write back files
             write_data(os.path.join(self.output_root_dir, 'train_images_labels_' + folder_name + '.pkl'), [curr_train_image_list, curr_train_label_list])
             write_data(os.path.join(self.output_root_dir, 'validation_images_labels_' + folder_name + '.pkl'), [curr_validation_image_list, curr_validation_label_list])
+    
+    def persist_resized_train_image_and_label(self, image_path, answer_txt_name):
+        """
+        preprocess new included images
+        :param image_path:  the path of image
+        :param answer_txt_name: txt of answer
+        :return:
+        """
+        print('writing files on new data')
+        # read the images
+        images_all, names_all = self.scale_images(image_path, image_name_flag=True)
+        nb_images = len(images_all)
+        # read the answer file to a dict
+        answer_map = map(str.split, open(answer_txt_name))
+        name_label_dict = dict()
+        for i in range(1, len(answer_map)):
+            name_label_dict[answer_map[i][0]] = answer_map[i][1]
+
+        images = []
+        labels = []
+        for name in name_label_dict.keys():
+            idx = names_all.index(name)
+            images.append(images_all[idx])
+            labels.append(name_label_dict[name])
+
+        return images, labels
+        # while 1:
+        #     i = random.randint(0, len(labels)-1)
+        #     plt.imshow(images[i])
+        #     plt.title(labels[i])
+
             
     def persist_resized_test_image(self):
         test_image_list = self.scale_images(self.input_root_dir)
