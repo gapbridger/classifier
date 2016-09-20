@@ -141,19 +141,20 @@ class ImagePreprocess(object):
             write_data(os.path.join(self.output_root_dir, 'train_images_labels_' + folder_name + '.pkl'), [curr_train_image_list, curr_train_label_list])
             write_data(os.path.join(self.output_root_dir, 'validation_images_labels_' + folder_name + '.pkl'), [curr_validation_image_list, curr_validation_label_list])
     
-    def persist_resized_train_image_and_label(self, image_path, answer_txt_name):
+    def persist_resized_test_image_and_label(self, answer_path):
         """
         preprocess new included images
         :param image_path:  the path of image
-        :param answer_txt_name: txt of answer
+        :param answer_path: txt of answer
         :return:
         """
         print('writing files on new data')
+        n_partition = 3
         # read the images
-        images_all, names_all = self.scale_images(image_path, image_name_flag=True)
+        images_all, names_all = self.scale_images(self.input_root_dir, image_name_flag=True)
         nb_images = len(images_all)
         # read the answer file to a dict
-        answer_map = map(str.split, open(answer_txt_name))
+        answer_map = map(str.split, open(answer_path))
         name_label_dict = dict()
         for i in range(1, len(answer_map)):
             name_label_dict[answer_map[i][0]] = answer_map[i][1]
@@ -161,15 +162,47 @@ class ImagePreprocess(object):
         images = []
         labels = []
         for name in name_label_dict.keys():
-            idx = names_all.index(name)
-            images.append(images_all[idx])
-            labels.append(name_label_dict[name])
+            if name in names_all:
+                idx = names_all.index(name)
+                images.append(images_all[idx])
+                labels.append(int(name_label_dict[name]))
 
-        return images, labels
-        # while 1:
-        #     i = random.randint(0, len(labels)-1)
-        #     plt.imshow(images[i])
-        #     plt.title(labels[i])
+        data = zip(images, labels)
+        random.shuffle(data)
+        train_data, validation_data = train_test_split(data, test_size=0.1, random_state=35)
+        train_images, train_labels = zip(*train_data)
+        validation_images, validation_labels = zip(*validation_data)
+#         train_images = images
+#         train_labels = labels
+        train_batch_length = len(train_images) / n_partition
+        validation_batch_length = len(validation_images) / n_partition
+                
+                
+#         while 1:
+#             i = random.randint(0, len(labels)-1)
+#             plt.imshow(images[i])
+#             plt.title(self.reverse_label_map[labels[i]])
+        n_shift = 30
+        for partition_idx in range(n_partition):
+            if(partition_idx < n_partition - 1):
+                write_data(os.path.join(self.output_root_dir, ('%s_cropped_224_224_ndarray_%d.pkl') % ('train', partition_idx + n_shift)), 
+                           [train_images[partition_idx * train_batch_length : (partition_idx + 1) * train_batch_length], 
+                            train_labels[partition_idx * train_batch_length : (partition_idx + 1) * train_batch_length]])
+                write_data(os.path.join(self.output_root_dir, ('%s_cropped_224_224_ndarray_%d.pkl') % ('validation', partition_idx + n_shift)), 
+                           [validation_images[partition_idx * validation_batch_length : (partition_idx + 1) * validation_batch_length], 
+                            validation_labels[partition_idx * validation_batch_length : (partition_idx + 1) * validation_batch_length]])
+            else:
+                print('last partition')
+                write_data(os.path.join(self.output_root_dir, ('%s_cropped_224_224_ndarray_%d.pkl') % ('train', partition_idx + n_shift)), 
+                           [train_images[partition_idx * train_batch_length:], 
+                            train_labels[partition_idx * train_batch_length:]])
+                write_data(os.path.join(self.output_root_dir, ('%s_cropped_224_224_ndarray_%d.pkl') % ('validation', partition_idx + n_shift)), 
+                            [validation_images[partition_idx * validation_batch_length:], 
+                             validation_labels[partition_idx * validation_batch_length:]])
+
+
+
+        
 
             
     def persist_resized_test_image(self):
@@ -383,7 +416,8 @@ if __name__ == '__main__':
     
     data_preprocessor = ImagePreprocess(input_root_dir, output_root_dir, target_scale=target_scale)
     if(args.mode == "resize"):
-        data_preprocessor.persist_resized_train_image_and_label()
+        # data_preprocessor.persist_resized_train_image_and_label()
+        data_preprocessor.persist_resized_test_image_and_label('/home/tao/Projects/bot-match/test_data/results/test_set_2/BOT_Image_Testset 2.txt')
     if(args.mode == "partition"):
         data_preprocessor.partition_train_image_list(n_partition, data_type)
     elif(args.mode == "crop"):
