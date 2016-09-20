@@ -8,7 +8,7 @@ CNN model:
 """
 from __future__ import print_function
 import numpy as np
-from skimage.util.dtype import img_as_ubyte
+from skimage.feature.corner_cy import img_as_float
 np.random.seed(1234)
 
 import argparse
@@ -22,14 +22,13 @@ from keras.layers.convolutional import Convolution2D, MaxPooling2D, ZeroPadding2
 from keras.optimizers import SGD
 from keras.utils import np_utils
 from keras.datasets import cifar10
-from keras.preprocessing.image import ImageDataGenerator
-from skimage import img_as_ubyte
+
 from image_preprocess import ImagePreprocess
 from image_preprocess import read_cifar_10
 import gc
 
 
-def vgg_net_16(n_class, weights_path=None):
+def vgg_net_16(n_class, vgg_16_weights_path=None, vgg_11_weights_path=None):
     
     rectified_linear_unit = 'relu'
     softmax = 'softmax'
@@ -86,9 +85,31 @@ def vgg_net_16(n_class, weights_path=None):
     model.add(Dense(n_class, name='dense_3'))
     model.add(Activation(softmax, name="softmax"))
 
-    if weights_path:
-        model.load_weights(weights_path)
+    if vgg_16_weights_path:
+        model.load_weights(vgg_16_weights_path)
         
+    if vgg_11_weights_path:
+        # use vgg 11 weights to initialize vgg 16 network
+        vgg_11 = vgg_net_11(n_class)
+        vgg_11.load_weights(vgg_11_weights_path)
+     
+        vgg_11_layer_dict = dict([(layer.name, layer) for layer in vgg_11.layers])
+        conv_1_1_weights = vgg_11_layer_dict['conv1_1'].get_weights()
+        conv_2_1_weights = vgg_11_layer_dict['conv2_1'].get_weights()
+        conv_3_1_weights = vgg_11_layer_dict['conv3_1'].get_weights()
+        conv_4_1_weights = vgg_11_layer_dict['conv4_1'].get_weights()
+        dense_1_weights = vgg_11_layer_dict['dense_1'].get_weights()
+        dense_2_weights = vgg_11_layer_dict['dense_2'].get_weights()
+        
+        vgg_16_layer_dict = dict([(layer.name, layer) for layer in model.layers])
+        vgg_16_layer_dict['conv1_1'].set_weights(conv_1_1_weights)
+        vgg_16_layer_dict['conv2_1'].set_weights(conv_2_1_weights)
+        vgg_16_layer_dict['conv3_1'].set_weights(conv_3_1_weights)
+        vgg_16_layer_dict['conv4_1'].set_weights(conv_4_1_weights)
+        vgg_16_layer_dict['dense_1'].set_weights(dense_1_weights)
+        vgg_16_layer_dict['dense_2'].set_weights(dense_2_weights)
+        
+
     return model
 
 
@@ -99,35 +120,35 @@ def vgg_net_11(n_class, weights_path=None):
     
     model = Sequential()
 
-    model.add(ZeroPadding2D((1, 1), input_shape=(224, 224, 3), dim_ordering='tf'))
-    model.add(Convolution2D(64, 3, 3, activation=rectified_linear_unit, name='conv1_1', dim_ordering='tf'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2), dim_ordering='tf'))
-    model.add(Dropout(0.25))
-
-    model.add(ZeroPadding2D((1, 1), dim_ordering='tf'))
-    model.add(Convolution2D(128, 3, 3, activation=rectified_linear_unit, name='conv2_1', dim_ordering='tf'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2), dim_ordering='tf'))
+    model.add(ZeroPadding2D((1, 1),input_shape=(3, 224, 224)))
+    model.add(Convolution2D(64, 3, 3, activation=rectified_linear_unit, name='conv1_1'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
     model.add(Dropout(0.25))
 
     model.add(ZeroPadding2D((1, 1)))
-    model.add(Convolution2D(256, 3, 3, activation=rectified_linear_unit, name='conv3_1', dim_ordering='tf'))
-    model.add(ZeroPadding2D((1, 1), dim_ordering='tf'))
-    model.add(Convolution2D(256, 3, 3, activation=rectified_linear_unit, name='conv3_2', dim_ordering='tf'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2), dim_ordering='tf'))
+    model.add(Convolution2D(128, 3, 3, activation=rectified_linear_unit, name='conv2_1'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
     model.add(Dropout(0.25))
 
-    model.add(ZeroPadding2D((1, 1), dim_ordering='tf'))
-    model.add(Convolution2D(512, 3, 3, activation=rectified_linear_unit, name='conv4_1', dim_ordering='tf'))
-    model.add(ZeroPadding2D((1, 1), dim_ordering='tf'))
-    model.add(Convolution2D(512, 3, 3, activation=rectified_linear_unit, name='conv4_2', dim_ordering='tf'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2), dim_ordering='tf'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(256, 3, 3, activation=rectified_linear_unit, name='conv3_1'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(256, 3, 3, activation=rectified_linear_unit, name='conv3_2'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
     model.add(Dropout(0.25))
 
-    model.add(ZeroPadding2D((1, 1), dim_ordering='tf'))
-    model.add(Convolution2D(512, 3, 3, activation=rectified_linear_unit, name='conv5_1', dim_ordering='tf'))
-    model.add(ZeroPadding2D((1, 1), dim_ordering='tf'))
-    model.add(Convolution2D(512, 3, 3, activation=rectified_linear_unit, name='conv5_2', dim_ordering='tf'))
-    model.add(MaxPooling2D((2, 2), strides=(2, 2), dim_ordering='tf'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation=rectified_linear_unit, name='conv4_1'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation=rectified_linear_unit, name='conv4_2'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
+    model.add(Dropout(0.25))
+
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation=rectified_linear_unit, name='conv5_1'))
+    model.add(ZeroPadding2D((1, 1)))
+    model.add(Convolution2D(512, 3, 3, activation=rectified_linear_unit, name='conv5_2'))
+    model.add(MaxPooling2D((2, 2), strides=(2, 2)))
     model.add(Dropout(0.25))
 
     # fully connected layers
@@ -145,14 +166,14 @@ def vgg_net_11(n_class, weights_path=None):
     return model
 
 
-def extract_images(image_preprocessor, partition_index, data_type):
-    image_list, labels = image_preprocessor.load_data_partition(partition_index, data_type)
-    return image_list, labels
-#     image_list = image_list.astype('float32')
-#     image_list = (image_list.astype('float32') - avg_rgb)
-#     image_list = np.divide(image_list, 255.0)
-#     image_list = np.rollaxis(image_list, 3, 1)
-    
+def extract_images(image_preprocessor, partition_index, data_type, avg_rgb):
+    images, labels = image_preprocessor.load_data_partition(partition_index, data_type)
+    images = image_preprocessor.crop_images(images, mode='random')
+    images = np.stack(images, axis=0)
+    images = img_as_float(images) - avg_rgb
+    # images = np.divide(images, 255.0)
+    images = np.rollaxis(images, 3, 1)
+    return images, labels
 
 
 if __name__ == '__main__':
@@ -170,66 +191,34 @@ if __name__ == '__main__':
     n_epoch = 100
     n_class = 12
     
-    avg_rgb = np.asarray([132.4509, 123.5161, 105.4855], dtype=float)
+    avg_rgb = np.asarray([132.4509, 123.5161, 105.4855], dtype=float) / 255.0
+    print('avg_rgb %f %f %f' %(avg_rgb[0], avg_rgb[1], avg_rgb[2]))
     
     image_preprocessor = ImagePreprocess(input_root_dir, output_root_dir)
     
     # averaged over training set
-    sgd = SGD(lr=0.008, decay=1e-6, momentum=0.9, nesterov=True)
-    vgg = vgg_net_11(n_class)
+    sgd = SGD(lr=0.004, decay=1e-6, momentum=0.9, nesterov=True)
+#     vgg = vgg_net_11(n_class)
+    vgg = vgg_net_16(n_class, vgg_11_weights_path='/home/tao/Projects/bot-match/weights/2016-09-18/vgg-11/vgg_11_weights_8.h5')
     vgg.compile(loss = 'categorical_crossentropy', optimizer=sgd, metrics = ['accuracy'])
     
-    train_data_gen = ImageDataGenerator(rotation_range=10.0,
-                                        width_shift_range=0.1,
-                                        height_shift_range=0.1,
-                                        shear_range=0.,
-                                        zoom_range=0.,
-                                        horizontal_flip=True,
-                                        rescale=1.0/255.0,
-                                        dim_ordering='tf')  # randomly flip images
-    
-    validation_data_gen = ImageDataGenerator(rotation_range=10.0,
-                                       width_shift_range=0.0,
-                                       height_shift_range=0.0,
-                                       shear_range=0.,
-                                       zoom_range=0.,
-                                       horizontal_flip=True,
-                                       rescale=1.0/255.0,
-                                       dim_ordering='tf')  # randomly flip images
-    
-    
-    for epoch_index in range(4,n_epoch):
+    for epoch_index in range(n_epoch):
         for partition_index in range(n_partition):
+             
             print('epoch %d, partition %d' % (epoch_index, partition_index))
-            print('loading images...') 
-            train_images, train_labels = extract_images(image_preprocessor, partition_index, 'train')
+             
+            train_images, train_labels = extract_images(image_preprocessor, partition_index, 'train', avg_rgb)
+            validation_images, validation_labels = extract_images(image_preprocessor, partition_index, 'validation', avg_rgb)
+             
             train_labels = np_utils.to_categorical(train_labels, n_class)
-            
-            validation_images, validation_labels = extract_images(image_preprocessor, partition_index, 'validation')
             validation_labels = np_utils.to_categorical(validation_labels, n_class)
-            print('cropping images...')
-            train_images = image_preprocessor.crop_images(train_images, mode='random')
-            train_images = np.stack(train_images, axis=0)
-            validation_images = image_preprocessor.crop_images(validation_images, mode='random')
-            validation_images = np.stack(validation_images, axis=0)
-            print('image crop finished...')
-                        
-            train_data_gen.fit(train_images)
-            validation_data_gen.fit(validation_images)
             
-            vgg.fit_generator(generator=train_data_gen.flow(train_images, train_labels, batch_size=32), 
-                              samples_per_epoch=train_images.shape[0], 
-                              nb_epoch=1, 
-                              verbose=1, 
-                              validation_data=validation_data_gen.flow(validation_images, validation_labels, batch_size=32), 
-                              nb_val_samples=validation_images.shape[0])
-            
-#             vgg.fit(train_images, 
-#                 train_labels, 
-#                 batch_size = 32, 
-#                 nb_epoch= 1, 
-#                 verbose = 1, 
-#                 validation_data = (validation_images, validation_labels))
+            vgg.fit(train_images,
+                    train_labels,
+                    batch_size = 20,
+                    nb_epoch= 1,
+                    verbose = 1,
+                    validation_data = (validation_images, validation_labels))
              
             print("release memory...")
             del train_images
@@ -240,12 +229,12 @@ if __name__ == '__main__':
              
             gc.collect()
             
-            if partition_index % 6 == 5:
-                print('saving weights for epoch %d partition index %d...' % (epoch_index, n_partition))
+            if(partition_index % 6 == 5):
+                print('saving weights for epoch %d, parittion %d...' % (epoch_index, partition_index))
                 vgg.save_weights(('vgg_11_weights_%d_%d.h5' % (epoch_index, partition_index)), overwrite = True)        
                 
     print('training finished...')
-        
+
    
 #     data_len = images.shape[0]
 #     n_slice = 10
@@ -256,4 +245,4 @@ if __name__ == '__main__':
 #         else:
 #             images[slice_idx * slice_len:,] = np.divide(images[slice_idx * slice_len:,], 255.0)
     
-       
+
