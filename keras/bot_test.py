@@ -35,6 +35,42 @@ def load_test_data(data_dir, n_partition, partition_idx, avg_rgb):
 #     test_data = np.rollaxis(data, 3, 1)
 #     return test_data
 
+def score_model(data_dir_list, model, avg_rgb):
+    """
+    :param data_dir_list:  list of pickles' path
+    :param model:
+    :return: score
+    """
+    nb_samples = 0
+    score_top1 = 0
+    score_top2 = 0
+    for dir in data_dir_list:
+        f = open(data_dir, 'rb')
+        images, labels = pickle.load(f)
+        # Add multi-crop here
+
+        len = len(images)
+        images = (images.astype('float32') - avg_rgb)
+        images = np.divide(images, 255.0)
+        xx_test = np.rollaxis(images, 3, 1)
+        test_prob = model.predict_proba(xx_test)  # modified here 
+
+
+        nb_samples = nb_samples + len
+        for i in range(len):
+            curr_data_probillity = test_prob[i, :]
+            top_2_labels = curr_data_probillity.argsort()[-2:][::-1]
+            best_label = top_2_labels[0]
+            second_label = top_2_labels[1]
+            if best_label == labels[i]:
+                score_top1 = score_top1+1
+            if second_label == labels[i]:
+                score_top2 = score_top2+1
+    score_top1 = float(score_top1)/nb_samples
+    score_top2 = float(score_top2)/nb_samples
+    return score_top1 + score_top2*0.4
+    
+    
 def write_result_file(result):
     result_file = open('result_file.txt', 'w')
     for image_name, best_label, best_prob, second_label, second_prob in result:
